@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All The Fishes</title>
     <script src="https://pixijs.download/release/pixi.js"></script>
+    <script src="js/bezier.js"></script>
 </head>
 <body>
     
@@ -55,9 +56,10 @@
         fish1.y = wobble1 + 200;              //Set them in the middle-ish of the stage
         fish2.y = wobble2 + 300;
 
-        setTimeout(animationLoop, 1000/30);   //We *should* be using requestAnimationFrame()
+        //setTimeout(animationLoop, 1000/30);   //We *should* be using requestAnimationFrame()
+        requestAnimationFrame(animationLoop);
     }
-    animationLoop();
+    //animationLoop();
 
     /*
     
@@ -91,56 +93,66 @@
 
     Animate.to = function(obj,end) {
 
-        //Set up initial state parameters
-        //We need to know where we started for this to work
-        //Just x and y to start
-        var start = {
-            x : obj.x,
-            y : obj.y
-        }
+        //Make it a promise:
+        return new Promise( (resolve,reject) => {
 
-        //Set some defaults
-        if (end.duration == undefined) end.duration = 0;
-
-        //We need to know when we've started animating
-        var startTime = Date.now();
-
-        //This will be our personal animation loop
-        function loop() {
-
-            //Calculate our delta
-            let ticker = Date.now() - startTime;
-            let delta = ticker/end.duration;
-
-            //If we're done, just snap to the end!
-            if (delta >= 1) {
-                obj.x = end.x;
-                obj.y = end.y;
-                console.log("Done!");
-                return;
+            //Set up initial state parameters
+            //We need to know where we started for this to work
+            //Just x and y to start
+            var start = {
+                x : obj.x,
+                y : obj.y
             }
 
-            //Interpolation function
-            let lerp = (a, b, n) => {
-                return (1 - n) * a + n * b;
+            //Set some defaults
+            if (end.duration == undefined) end.duration = 0;
+            if (end.easing == undefined) end.easing = Animate.linear;
+
+            //We need to know when we've started animating
+            var startTime = Date.now();
+
+            //This will be our personal animation loop
+            function loop() {
+
+                //Calculate our delta
+                let ticker = Date.now() - startTime;
+                let delta = ticker/end.duration;
+                let ease = end.easing(delta);
+
+                //If we're done, just snap to the end!
+                if (delta >= 1) {
+                    obj.x = end.x;
+                    obj.y = end.y;
+                    console.log("Done!");
+                    
+                    resolve();
+                    return;
+                }
+
+                //Interpolation function
+                let lerp = (a, b, n) => {
+                    return (1 - n) * a + n * b;
+                }
+
+                //Interpolate (lerp) our x coordinate
+                obj.x = lerp(start.x,end.x,ease);
+
+                //Lerp our y coordinate
+                obj.y = lerp(start.y,end.y,ease);
+
+                //Start the loop going!
+                obj.animationID = requestAnimationFrame(loop);
+
             }
 
-            //Interpolate (lerp) our x coordinate
-            obj.x = lerp(start.x,end.x,delta);
+            //Clear the animation ID so there aren't competing loops
+            cancelAnimationFrame(obj.animationID);
 
-            //Lerp our y coordinate
-            obj.y = lerp(start.y,end.y,delta);
+            //Begin the loop!
+            loop();
 
-            //Start the loop going!
-            obj.animationID = requestAnimationFrame(loop);
-
-        }
-
-        //Clear the animation ID so there aren't competing loops
-        cancelAnimationFrame(obj.animationID);
-
-        //Begin the loop!
-        loop();
+        //End Promise
+        });
 
     };
 
@@ -154,10 +166,12 @@
 
     */
 
+    /*
     Animate.from = function(obj,end) {
         end.duration = 0;
         Animate.to(obj,end);
     }
+    */
 
     /*
 
@@ -279,12 +293,12 @@
             console.log("Done!");
 
         However we can only use the await keyword in a function that has been declared to be asynchronous
-
+    */
             async function wait3Seconds() {
                 await pause(3000);
                 console.log("Done!");
             }
-
+    /*
         Awaits can also be used to evaluate return values
 
             let theAnswer = await hugeCalculation();
@@ -299,6 +313,38 @@
         And we can loop chains of animations by creating asynchronous functions that call themselves at the end.
         
     */
+
+            
+            async function idleSwim1() {
+                await Animate.to(fish1,{
+                    x:300,y:320,
+                    duration:2000,
+                    easing:Animate.easeInOut
+                });
+                await Animate.to(fish1,{
+                    x:300,y:280,
+                    duration:2000,
+                    easing:Animate.easeInOut
+                });
+                idleSwim1();
+            }
+            idleSwim1();
+
+            async function idleSwim2() {
+                await Animate.to(fish2,{
+                    x:300,y:30,
+                    duration:1200,
+                    easing:Animate.easeInOut
+                });
+                await Animate.to(fish2,{
+                    x:300,y:0,
+                    duration:1200,
+                    easing:Animate.easeInOut
+                });
+                idleSwim2();
+            }
+            idleSwim2();
+
 
     /*
 
@@ -316,11 +362,13 @@
         //This will be our personal animation loop
         function loop() {
 
-            //Calculate our delta
-            let ticker = Date.now() - startTime;
+            //Calculate our parameters
+            var params = {
+                ticker : Date.now() - startTime
+            };
             
             //In here it's just our own code
-            loopFunc();
+            loopFunc(params);
 
             //Start the loop going!
             obj.animationID = requestAnimationFrame(loop);
