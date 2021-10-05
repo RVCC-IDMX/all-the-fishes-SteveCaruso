@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All The Fishes</title>
+    <script src="https://pixijs.download/release/pixi.js"></script>
+</head>
+<body>
+    
+<script>
+
+    //The App
+    var app = new PIXI.Application({
+        width:640,
+        height:480,
+        backgroundColor: 0x000000
+    });
+    var stage = app.stage;
+    var view = app.view;
+
+    //Add view to the document
+    document.body.appendChild(app.view);
+
+    //My first sprite
+    let fish1 = PIXI.Sprite.from("img/lepomis-macrochirus.gif");
+        fish1.x = 200;
+        fish1.y = 200;
+        fish1.angle = 0;
+        fish1.tint = 0xFFFFFF;
+        fish1.anchor.set(.5);
+
+    //Add it to the stage!
+    stage.addChild(fish1);
+
+    //My second sprite
+    let fish2 = PIXI.Sprite.from("img/lepomis-gibbosus.png");
+        fish1.anchor.set(.5);
+        fish2.scale.set(.3);
+        fish2.x = 300;
+        fish2.y = 0;
+
+    //Add it to the stage!
+    app.stage.addChild(fish2);
+
+    //Basic animation loop!
+    function animationLoop() {
+
+        let time = Date.now();
+
+        let wobble1 = Math.sin(time/1000)*20; //Period 1 second, from 20 to -20
+        let wobble2 = Math.sin(time/700)*10;  //Period 0.7 seconds, from 10 to -10
+
+        fish1.y = wobble1 + 200;              //Set them in the middle-ish of the stage
+        fish2.y = wobble2 + 300;
+
+        setTimeout(animationLoop, 1000/30);   //We *should* be using requestAnimationFrame()
+    }
+    animationLoop();
+
+    /*
+    
+        However this animation loop doesn't do too terribly much. 
+        
+        Both fish are "entangled" and cannot move independently of the one time variable.
+
+        How can we fix this?
+
+        We can create some kind of independent animation system for each of them.
+
+        We'll call it Animate.
+
+    */
+    
+    let Animate = {};   //Just a blank object for now.
+    
+    /*
+        Just like our loop, we need to have a few things in mind:
+
+        • duration - how long the animation takes
+        • start parameters - the state the object begins in
+        • end parameters - the state the object ends at
+        • delta - how far along we are in the animation
+
+        We refer to these things collectively as the "timing model."
+
+        Applying the timing model to our objects gives us our "animation model" and thus the animation. :-)
+
+    */
+
+    Animate.to = function(obj,end) {
+
+        //Set up initial state parameters
+        //We need to know where we started for this to work
+        //Just x and y to start
+        var start = {
+            x : obj.x,
+            y : obj.y
+        }
+
+        //Set some defaults
+        if (end.duration == undefined) end.duration = 0;
+
+        //We need to know when we've started animating
+        var startTime = Date.now();
+
+        //This will be our personal animation loop
+        function loop() {
+
+            //Calculate our delta
+            let ticker = Date.now() - startTime;
+            let delta = ticker/end.duration;
+
+            //If we're done, just snap to the end!
+            if (delta >= 1) {
+                obj.x = end.x;
+                obj.y = end.y;
+                console.log("Done!");
+                return;
+            }
+
+            //Interpolation function
+            let lerp = (a, b, n) => {
+                return (1 - n) * a + n * b;
+            }
+
+            //Interpolate (lerp) our x coordinate
+            obj.x = lerp(start.x,end.x,delta);
+
+            //Lerp our y coordinate
+            obj.y = lerp(start.y,end.y,delta);
+
+            //Start the loop going!
+            obj.animationID = requestAnimationFrame(loop);
+
+        }
+
+        //Clear the animation ID so there aren't competing loops
+        cancelAnimationFrame(obj.animationID);
+
+        //Begin the loop!
+        loop();
+
+    };
+
+    /*
+
+        Let's also add a .from() function, which is just a sortcut for duration:0
+
+        This way we can call Animate.from() and an Animate.to().
+
+        It just looks better. :-)
+
+    */
+
+    Animate.from = function(obj,end) {
+        end.duration = 0;
+        Animate.to(obj,end);
+    }
+
+    /*
+
+        We might also want a way to stop an animation, too.
+
+    */
+
+    Animate.stop = function(obj) {
+        
+        cancelAnimationFrame(obj.animationID);
+
+    }
+
+    /*
+
+        This looks awesome, but it's robotic.
+
+        We can fix this with Easing.
+
+        All easing is, is slowing the delta down or speeding it up in places by using a "timing function."
+
+        A timing function takes a value from 0.0-1.0 and outputs another value (generally) between 0.0 and 1.0
+
+        Here's an awesome website:
+
+            https://easings.net/
+
+        And here are the functions for those easings (note this is in TypeScript – which is JavaScript with a bunch of extended syntax):
+
+            https://github.com/ai/easings.net/blob/master/src/easings/easingsFunctions.ts        
+
+    */
+
+    //Linear, in goes x, out comes x
+    Animate.linear = (x) => x;
+
+    //Quadratic
+	Animate.easeIn  = (x) => x * x;
+    Animate.easeOut = (x) => 1 - (1 - x) * (1 - x);
+	Animate.easeInOut = (x) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; //Yay math!
+
+    /*
+
+        And now we can edit our to() above by:
+        
+         - Adding a new parameter for the easing
+         - Adding in a new easing variable that replaces delta for our interpolations
+
+    */
+
+
+    /*
+
+        And here is one for cubic bezier easing, which you can "plug and play"
+
+            https://cubic-bezier.com/
+
+        The math behind this is above our paygrade right now, but there is a library that all the bigwigs use (like Apple and React):
+
+            https://github.com/gre/bezier-easing
+            https://github.com/gre/bezier-easing/blob/master/src/index.js
+            https://raw.githubusercontent.com/gre/bezier-easing/master/src/index.js
+
+        We first need to create a bezier easing funtion
+
+            let ease = BezierEasing(a,b,c,d);
+        
+        And then we call it with the delta:
+
+            ease(delta)
+
+        This is essentially the same as:
+
+            BezierEasing(a,b,c,d)(delta);
+
+        If you create a function that returns a function for each argument, [e.g. func(a)(b)(c) ], this technique is called "currying."
+
+    */
+
+    /*
+
+        But what about animations that we want to happen in sequence?
+
+        Do we use setTimeout() a bunch of times?
+
+        We need to use Promises.
+
+        A function that uses a Promise, instead of returning an immediate value, it returns a Promise object that can resolve into a value in the future.
+
+        Promises used to be very messy in earlier versions of JavaScript, but nowadays we are able to use the keyword
+
+            await
+
+        Which "pauses" execution of the program, until a Promise resolves before moving on to the next line of code.
+
+        In fact, here's a pause function implemented with a Promise:
+
+    */
+
+    function pause(ms) {
+
+        return new Promise( (resolve,reject) => {
+            
+            setTimeout(resolve,ms);
+
+        } );
+
+    }
+
+    /*
+
+        We can use the returned Promise like this:
+
+            pause(3000).then( () => console.log("Done!") );
+
+        *or* more modernly
+
+            await pause(3000);
+            console.log("Done!");
+
+        However we can only use the await keyword in a function that has been declared to be asynchronous
+
+            async function wait3Seconds() {
+                await pause(3000);
+                console.log("Done!");
+            }
+
+        Awaits can also be used to evaluate return values
+
+            let theAnswer = await hugeCalculation();
+
+
+        So let's re-do our Animation object so that it's asynchronous.
+
+        All we need to do is wrap our code in a Promise, and resolve() instead of return.
+
+        Then we can chain animations with .then() or inside an async function we can await them.
+
+        And we can loop chains of animations by creating asynchronous functions that call themselves at the end.
+        
+    */
+
+    /*
+
+        Finally, we can add in a personal animation loop for the same kind of animations we did in the first place
+
+    */
+
+    Animate.loop = function(obj,loopFunc) {
+
+        //No state parameters
+
+        //We need to know when we've started animating
+        var startTime = Date.now();
+
+        //This will be our personal animation loop
+        function loop() {
+
+            //Calculate our delta
+            let ticker = Date.now() - startTime;
+            
+            //In here it's just our own code
+            loopFunc();
+
+            //Start the loop going!
+            obj.animationID = requestAnimationFrame(loop);
+
+        }
+
+        //Clear the animation ID so there aren't competing loops
+        cancelAnimationFrame(obj.animationID);
+
+        //Begin the loop!
+        loop();
+
+    };
+
+    /*
+
+        So here's what you're going to need to do:
+
+        1) Use the animations we've built to spiffy up your tank (your option)
+
+        2) Extend the animation system so that it handles:
+            - scale
+            - rotation/angle
+            - tint
+            - alpha
+
+        3) Make one of your fish:
+            - idly bob around, 
+            - when clicked/tapped, swim up to the surface, 
+            - swim back down, and 
+            - resume idly bobbing
+
+        4) Make another one of your fish swim over to where you "tap on the glass" before heading back to their idle state.
+
+    */
+    
+
+</script>
+
+</body>
+</html>
