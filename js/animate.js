@@ -22,7 +22,14 @@ Animate.to = function(obj,end) {
         //Just x and y to start
         var start = {
             x : obj.x,
-            y : obj.y
+            y : obj.y,
+            scale: {
+                x : obj.scale.x,
+                y : obj.scale.y
+            },
+            rotation : obj.rotation,
+            tint : obj.tint,
+            alpha : obj.alpha
         }
 
         //Set some defaults
@@ -40,10 +47,17 @@ Animate.to = function(obj,end) {
             let delta = ticker/end.duration;
             let ease = end.easing(delta);
 
+            //Fire our custom loop function, if there is one
+            if (end.loop != undefined) end.loop(obj,end,{ticker,delta,ease});
+
             //If we're done, just snap to the end!
             if (delta >= 1) {
-                obj.x = end.x;
-                obj.y = end.y;
+                if (end.x != undefined) obj.x = end.x;
+                if (end.y != undefined)obj.y = end.y;
+                if (end.scale != undefined) obj.scale.set(end.scale.x,end.scale.y);
+                if (end.rotation != undefined) obj.rotation = end.rotation;
+                if (end.tint != undefined) obj.tint = end.tint;
+                if (end.alpha != undefined) obj.alpha = end.alpha;
                 console.log("Done!");
                 
                 resolve();
@@ -56,10 +70,30 @@ Animate.to = function(obj,end) {
             }
 
             //Interpolate (lerp) our x coordinate
-            obj.x = lerp(start.x,end.x,ease);
+            if (end.x != undefined)
+                obj.x = lerp(start.x,end.x,ease);
 
             //Lerp our y coordinate
-            obj.y = lerp(start.y,end.y,ease);
+            if (end.y != undefined)
+                obj.y = lerp(start.y,end.y,ease);
+
+            //Lerp our scale
+            if (end.scale != undefined)
+                obj.scale.set(lerp(start.scale.x,end.scale.x,ease), 
+                            lerp(start.scale.y,end.scale.y,ease)
+                );
+
+            //Lerp our rotation -- we'll need to clean this up, but later
+            if (end.rotation != undefined)
+                obj.rotation = lerp(start.rotation,end.rotation,ease);
+
+            //Lerp our tint -- we'll also need to clean this up for each channel, but later
+            if (end.tint != undefined)
+                obj.tint = lerp(start.tint,end.tint,ease);
+
+            //Lerp our alpha
+            if (end.alpha != undefined)
+                obj.alpha = lerp(start.alpha,end.alpha,ease);
 
             //Start the loop going!
             obj.animationID = requestAnimationFrame(loop);
